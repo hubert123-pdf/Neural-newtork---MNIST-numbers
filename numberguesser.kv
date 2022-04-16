@@ -1,0 +1,48 @@
+#:kivy 2.1.0
+MainWidget:
+<MainWidget>:
+    font_name: "font/Lato-Regular.ttf"
+    orientation: "vertical"
+    canvas.before: 
+        Color:
+            rgba: 198, 179, 189, 0.43
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    
+    DrawingWidget:
+        id: drawing_widget
+    BoxLayout:
+        size_hint: 1,.1
+        orientation: "horizontal"
+        Button:
+            background_color: 0,0,0,1
+            font_size: "30dp"
+            text: "Guess number"
+            on_press: 
+                root.on_click_guess(drawing_widget)
+                self.background_color = (0, 0, 0, 0.5) 
+            on_release: self.background_color = (0, 0, 0, 1)
+        Button:
+            background_color: 0,0,0,1
+            font_size: "30dp"
+            text: "Clear canvas"
+            on_press: 
+                root.on_click_clear(drawing_widget)
+                self.background_color = (0, 0, 0, 0.5) 
+
+            on_release: self.background_color = (0, 0, 0, 1)
+    Label:
+        font_size: "30dp"
+        text: root.predicted_number
+        pos_hint: {"center_x": .5}
+        size_hint: 1,.1
+
+
+<DrawingWidget>:
+    canvas:
+        Color:
+            rgba: 1, 1, 1, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
