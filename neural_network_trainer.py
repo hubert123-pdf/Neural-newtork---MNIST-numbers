@@ -1,95 +1,83 @@
-from cProfile import label
-from numpy import size, test
-import torch 
-import torchvision
-from torchvision.datasets import MNIST
-import matplotlib.pyplot as plt
-import torchvision.transforms as transforms
-from torch.utils.data import random_split 
-from torch.utils.data import DataLoader 
-import torch.nn as nn 
+import torch, torchvision
+from torch import nn
+from torch import optim
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from torchvision.datasets import MNIST
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
+import copy
 import image_input as im
 
-    
-INPUT_SIZE = 28*28
-NUM_CLASSES = 10
-
-class MnistModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.linear = nn.Linear(INPUT_SIZE, NUM_CLASSES)
-
-    def forward(self, xb):
-        xb = xb.reshape(-1, 784)
-        out = self.linear(xb)
-        return out    
-
-    def training_step(self, batch):
-        images, labels = batch 
-        out = self(images)
-        loss = F.cross_entropy(out, labels)
-        return loss     
-
-    def validation_step(self, batch):
-        images, labels = batch 
-        out = self(images) 
-        loss = F.cross_entropy(out, labels) 
-        acc = accuracy(out, labels) 
-        return {'val_loss': loss, 'val_acc': acc}  
-
-    def validation_epoch_end(self, outputs):
-        batch_losses = [x['val_loss'] for x in outputs]
-        epoch_loss = torch.stack(batch_losses).mean()
-        batch_accs = [x['val_acc'] for x in outputs]
-        epoch_acc = torch.stack(batch_accs).mean()
-        return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}  
-
-    def epoch_end(self, epoch, result):
-        print("Epoch [{}], val_loss: {:.4f}, val_acc: {:.4f}".format(epoch, result['val_loss'], result['val_acc']))     
 
 
-def evaluate(model, val_loader):
-    outputs = [model.validation_step(batch) for batch in val_loader]
-    return model.validation_epoch_end(outputs)
+def create_lenet():
+    model = nn.Sequential(
+        nn.Conv2d(1, 6, 5, padding = 2),
+        nn.ReLU(),
+        nn.AvgPool2d(2, stride = 2),
 
+        nn.Conv2d(6, 16, 5, padding = 0),
+        nn.ReLU(),
+        nn.AvgPool2d(2, stride = 2),
 
-def fit(num_epochs,lr , model, train_loader, val_loader, opt_func = torch.optim.SGD):
-    history = []
-    optimizer = opt_func(model.parameters(), lr)
-    for epoch in range(num_epochs):
-        for batch in train_loader:  #wejścia i dokładne wyjścia 
-            loss = model.training_step(batch)
+        nn.Flatten(),
+        nn.Linear(400 , 120),
+        nn.ReLU(),
+        nn.Linear(120, 84),
+        nn.ReLU(),
+        nn.Linear(84, 10)
+    )
+    return model
+
+#sprawdzenie jak poprawny jest utworzony model
+def validate(model, data):
+    total = 0
+    correct = 0
+    for i, (images, labels) in enumerate(data):
+        x = model(images)
+        value, pred = torch.max(x, 1)
+        total += x.size(0)
+        correct += torch.sum(pred ==labels)
+    return correct * 100. / total
+
+def train(numb_epoch = 3, lr = 1e-3, device  = "cpu"):
+    cnn = create_lenet()
+    cec = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(cnn.parameters(), lr = 1e-3)
+    max_accuracy = 0
+    accuracies = []
+    for epoch in range(numb_epoch):
+        for i, (images, labels) in enumerate(train_loader):
+            optimizer.zero_grad()
+            pred = cnn(images)
+            loss = cec(pred, labels)
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
-        result = evaluate(model, val_loader)
-        model.epoch_end(epoch, result)
-        history.append(result)
-    return history
+        accuracy = float(validate(cnn,val_loader))
+        accuracies.append(accuracy)
+        if(accuracy > max_accuracy):
+            best_model = copy.deepcopy(cnn)
+            max_accuracy = accuracy
+        print("Epoch: ", epoch + 1, "Accuracy: ", accuracy, "%")
+    return best_model
 
-
-def accuracy(outputs, labels):
-    _, preds = torch.max(outputs, dim=1)
-    return torch.tensor(torch.sum(preds == labels).item() / len(preds))
-
-
-def predict_image(img, model):
-    xb = img.unsqueeze(0)
-    yb = model(xb)
-    print(yb)
+def guess_number(filename, model):
+    img_to_guess =  im.get_img(filename)
+    plt.imshow(img_to_guess, cmap = "gray")
+    img_to_guess = img_to_guess.unsqueeze(0)   
+    img_to_guess = img_to_guess.unsqueeze(0)
+    
+    plt.show()
+    yb =  model(img_to_guess)
     _, preds = torch.max(yb, dim=1)
     return preds[0].item()
 
+if(__name__ == "__main__"):
+    train_dataset = MNIST(root='data/', train=True,transform=transforms.ToTensor())
+    val_dataset = MNIST(root='data/', train=False, transform=transforms.ToTensor())
 
-def train_network(filename):
-    dataset = MNIST(root = "data/", download = True, transform = transforms.ToTensor())
-#    test_dataset = MNIST(root = "data/", train = False, transform = transforms.ToTensor())
-    train_ds, val_ds = random_split(dataset, [50000, 10000])
-    train_loader = DataLoader(train_ds, batch_size = 10, shuffle = True)
-    val_loader = DataLoader(val_ds, batch_size = 10, shuffle = True)
-    img_to_guess =  im.get_img(filename)
-    img_to_guess = img_to_guess.unsqueeze(0)   
-    model = MnistModel()
-    fit(2, 0.001, model, train_loader, val_loader)
-    return predict_image(img_to_guess, model)
+    batch_size = 128
+    train_loader = DataLoader(train_dataset, batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size)
+    torch.save(train(10),"model.pth")

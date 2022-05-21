@@ -5,10 +5,10 @@ from kivy.graphics import Line
 from kivy.properties import ListProperty, NumericProperty
 from kivy.graphics import Rectangle, Color, Line
 from kivy.properties import StringProperty
+import torch
 import neural_network_trainer as trainer
-import image_input 
 import kivy
-
+ 
 
 class DrawingWidget(Widget):
     """
@@ -26,7 +26,7 @@ class DrawingWidget(Widget):
 
         with self.canvas:
             Color(*self.target_colour_rgb)
-            self.line = Line(points = [touch.pos[0], touch.pos[1]], width = 10)
+            self.line = Line(points = [touch.pos[0], touch.pos[1]], width = 20)
 
     def on_touch_move(self, touch):
         if not self.collide_point(*touch.pos):
@@ -44,7 +44,7 @@ class MainWidget(BoxLayout):
 
     def on_click_guess(self,widget: Widget):
         widget.export_to_png("file.png")
-        self.predicted_number = "Number: " + str(trainer.train_network("file.png"))
+        self.predicted_number = "Number: " + str(trainer.guess_number("file.png", torch.load("model.pth")))
 
     def on_click_clear(self,widget: Widget):
         with widget.canvas:
